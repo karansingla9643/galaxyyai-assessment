@@ -57,12 +57,13 @@ const NODES: NodeDef[] = [
 ];
 
 const CATEGORIES = ["All"];
-useEffect(() => {
-  console.log(
-    `Candidate LinkedIn: ${process.env.NEXT_PUBLIC_LINKEDIN_URL ?? "https://www.linkedin.com/in/YOUR-HANDLE"}`
-  );
-}, []);
+
 export default function NodesPage() {
+  useEffect(() => {
+    console.log(
+      `Candidate LinkedIn: ${process.env.NEXT_PUBLIC_LINKEDIN_URL ?? "https://www.linkedin.com/in/YOUR-HANDLE"}`
+    );
+  }, []);
   return (
     <div className="p-8 max-w-5xl">
       {/* Header */}
