@@ -2,7 +2,8 @@
 
 import { useEffect, use, useState, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, Pencil, Play, Loader2, Upload, ImageIcon, X, GripHorizontal, CheckCircle2, XCircle, AlertCircle, Clock4, ChevronDown, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Pencil, Play, Loader2, Upload, ImageIcon, X, GripHorizontal, CheckCircle2, XCircle, AlertCircle, Clock4, ChevronDown, ChevronRight, Copy } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,7 @@ interface WorkflowData {
   id: string;
   name: string;
   flowJson: { nodes: any[]; edges: any[] } | null;
+  workflowType: string;
   runs: RunRecord[];
   createdAt: string;
   updatedAt: string;
@@ -480,12 +482,14 @@ function PlaygroundTab({ workflow }: { workflow: WorkflowData }) {
       `Candidate LinkedIn: ${process.env.NEXT_PUBLIC_LINKEDIN_URL ?? "https://www.linkedin.com/in/YOUR-HANDLE"}`
     );
   }, []);
+  const isDefault = workflow.workflowType !== "custom";
+
   return (
     <div ref={containerRef} className="flex flex-col flex-1 overflow-hidden relative">
       {/* ── Top row: Inputs + Output ── */}
       <div
         className="flex border-b border-gray-200 shrink-0"
-        style={{ height: `${topSectionHeight}%`, minHeight: "30%" }}
+        style={{ height: isDefault ? "100%" : `${topSectionHeight}%`, minHeight: "30%" }}
       >
         {/* Left: Inputs */}
         <div className="w-[420px] border-r border-gray-200 flex flex-col bg-white shrink-0">
@@ -613,117 +617,190 @@ function PlaygroundTab({ workflow }: { workflow: WorkflowData }) {
           </div>
         </div>
       </div>
-
-      {/* ── Resize Handle ── */}
-      <div
-        className={`flex items-center justify-center h-3 cursor-row-resize shrink-0 hover:bg-indigo-50 transition-colors relative group ${isDragging ? 'bg-indigo-100' : ''
-          }`}
-        onMouseDown={handleMouseDown}
-      >
-        <div className={`w-12 h-1 rounded-full transition-all ${isDragging ? 'bg-indigo-500 w-16' : 'bg-gray-300 group-hover:bg-indigo-400'
-          }`} />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <GripHorizontal size={14} className={`text-gray-400 transition-opacity ${isDragging ? 'text-indigo-500' : 'opacity-0 group-hover:opacity-100'
-            }`} />
-        </div>
-      </div>
-
-      {/* ── Bottom: Run History ── */}
-      <div
-        className="flex flex-col bg-white overflow-hidden shrink-0"
-        style={{ height: `${historyHeight}%`, minHeight: "20%" }}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 shrink-0">
-          <div className="flex items-center gap-2">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
-              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-            </svg>
-            <span className="text-sm font-semibold text-gray-900">Run History</span>
-            <span className="text-xs text-gray-400 font-medium">({runs.length})</span>
-            {isHistoryMaximized && (
-              <Badge variant="outline" className="text-[10px] text-indigo-600 border-indigo-200 bg-indigo-50">
-                Max height
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {/* UI / API toggle */}
-            <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs">
-              <button
-                onClick={() => setRunFilter("UI")}
-                className={`px-3 py-1 rounded-md font-medium transition-all ${runFilter === "UI" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+      {workflow?.workflowType === "custom" && (
+        <>
+          {/* ── Resize Handle ── */}
+          <div
+            className={`flex items-center justify-center h-3 cursor-row-resize shrink-0 hover:bg-indigo-50 transition-colors relative group ${isDragging ? "bg-indigo-100" : ""
+              }`}
+            onMouseDown={handleMouseDown}
+          >
+            <div
+              className={`w-12 h-1 rounded-full transition-all ${isDragging
+                  ? "bg-indigo-500 w-16"
+                  : "bg-gray-300 group-hover:bg-indigo-400"
+                }`}
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <GripHorizontal
+                size={14}
+                className={`text-gray-400 transition-opacity ${isDragging
+                    ? "text-indigo-500"
+                    : "opacity-0 group-hover:opacity-100"
                   }`}
-              >
-                UI Runs
-              </button>
-              <button
-                onClick={() => setRunFilter("API")}
-                className={`px-3 py-1 rounded-md font-medium transition-all ${runFilter === "API" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
-              >
-                API Runs
-              </button>
-            </div>
-            {/* Search */}
-            <div className="relative">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
-                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search by Run ID…"
-                value={runSearch}
-                onChange={(e) => setRunSearch(e.target.value)}
-                className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-indigo-300 w-44 placeholder-gray-400"
               />
             </div>
           </div>
-        </div>
 
-        {/* Table */}
-        <div className="flex-1 overflow-y-auto">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-white border-b border-gray-100 z-10">
-              <tr>
-                <th className="text-left px-5 py-2.5 text-gray-500 font-medium">Date &amp; Time</th>
-                <th className="text-left px-5 py-2.5 text-gray-500 font-medium">Status</th>
-                <th className="text-left px-5 py-2.5 text-gray-500 font-medium">Used credits</th>
-                <th className="text-left px-5 py-2.5 text-gray-500 font-medium">Run ID</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRuns.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="text-center py-10 text-gray-400">
-                    No {runFilter === "UI" ? "UI" : "API"} runs yet.
-                  </td>
-                </tr>
-              ) : (
-                filteredRuns.map((run) => {
-                  const cfg = statusConfig[run.status] ?? { label: run.status, className: "bg-gray-100 text-gray-600" };
-                  return (
-                    <tr
-                      key={run.id}
-                      onClick={() => setSelectedRunId(run.id)}
-                      className="border-b border-gray-50 hover:bg-indigo-50/40 transition-colors cursor-pointer group"
-                    >
-                      <td className="px-5 py-3 text-gray-700 group-hover:text-indigo-700">{formatRunDate(run.startedAt)}</td>
-                      <td className="px-5 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${cfg.className}`}>
-                          {cfg.label}
-                        </span>
+          {/* ── Bottom: Run History ── */}
+          <div
+            className="flex flex-col bg-white overflow-hidden shrink-0"
+            style={{ height: `${historyHeight}%`, minHeight: "20%" }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 shrink-0">
+              <div className="flex items-center gap-2">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="text-gray-400"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+
+                <span className="text-sm font-semibold text-gray-900">
+                  Run History
+                </span>
+
+                <span className="text-xs text-gray-400 font-medium">
+                  ({runs.length})
+                </span>
+
+                {isHistoryMaximized && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] text-indigo-600 border-indigo-200 bg-indigo-50"
+                  >
+                    Max height
+                  </Badge>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* UI / API toggle */}
+                <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs">
+                  <button
+                    onClick={() => setRunFilter("UI")}
+                    className={`px-3 py-1 rounded-md font-medium transition-all ${runFilter === "UI"
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                      }`}
+                  >
+                    UI Runs
+                  </button>
+
+                  <button
+                    onClick={() => setRunFilter("API")}
+                    className={`px-3 py-1 rounded-md font-medium transition-all ${runFilter === "API"
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                      }`}
+                  >
+                    API Runs
+                  </button>
+                </div>
+
+                {/* Search */}
+                <div className="relative">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+
+                  <input
+                    type="text"
+                    placeholder="Search by Run ID…"
+                    value={runSearch}
+                    onChange={(e) => setRunSearch(e.target.value)}
+                    className="pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-indigo-300 w-44 placeholder-gray-400"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="flex-1 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-white border-b border-gray-100 z-10">
+                  <tr>
+                    <th className="text-left px-5 py-2.5 text-gray-500 font-medium">
+                      Date &amp; Time
+                    </th>
+                    <th className="text-left px-5 py-2.5 text-gray-500 font-medium">
+                      Status
+                    </th>
+                    <th className="text-left px-5 py-2.5 text-gray-500 font-medium">
+                      Used credits
+                    </th>
+                    <th className="text-left px-5 py-2.5 text-gray-500 font-medium">
+                      Run ID
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredRuns.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="text-center py-10 text-gray-400"
+                      >
+                        No {runFilter === "UI" ? "UI" : "API"} runs yet.
                       </td>
-                      <td className="px-5 py-3 text-gray-500">—</td>
-                      <td className="px-5 py-3 font-mono text-gray-400 group-hover:text-indigo-400">{run.id.slice(0, 20)}…</td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  ) : (
+                    filteredRuns.map((run) => {
+                      const cfg = statusConfig[run.status] ?? {
+                        label: run.status,
+                        className: "bg-gray-100 text-gray-600",
+                      };
+
+                      return (
+                        <tr
+                          key={run.id}
+                          onClick={() => setSelectedRunId(run.id)}
+                          className="border-b border-gray-50 hover:bg-indigo-50/40 transition-colors cursor-pointer group"
+                        >
+                          <td className="px-5 py-3 text-gray-700 group-hover:text-indigo-700">
+                            {formatRunDate(run.startedAt)}
+                          </td>
+
+                          <td className="px-5 py-3">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${cfg.className}`}
+                            >
+                              {cfg.label}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-3 text-gray-500">—</td>
+
+                          <td className="px-5 py-3 font-mono text-gray-400 group-hover:text-indigo-400">
+                            {run.id.slice(0, 20)}…
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Run Detail Dialog */}
       <RunDetailDialog runId={selectedRunId} onClose={() => setSelectedRunId(null)} />
@@ -779,9 +856,11 @@ export default function WorkflowDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
   const [workflow, setWorkflow] = useState<WorkflowData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cloning, setCloning] = useState(false);
 
   useEffect(() => {
     fetch(`/api/workflows/${id}`)
@@ -793,6 +872,30 @@ export default function WorkflowDetailPage({
       .catch(() => setError("Failed to load workflow"))
       .finally(() => setLoading(false));
   }, [id]);
+
+  const cloneWorkflow = async () => {
+    if (!workflow) return;
+    setCloning(true);
+    try {
+      const res = await fetch("/api/workflows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: `${workflow.name} - Copy` }),
+      });
+      const newWf = await res.json();
+      if (!res.ok) throw new Error(newWf.error ?? "Failed to clone");
+      // Now save the original flowJson into the new workflow
+      await fetch(`/api/workflows/${newWf.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ flowJson: workflow.flowJson }),
+      });
+      router.push(`/workflow/${newWf.id}/canvas`);
+    } catch {
+      alert("Failed to clone workflow");
+      setCloning(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -812,7 +915,7 @@ export default function WorkflowDetailPage({
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white overflow-hidden">
+    <div className="flex-1 flex flex-col bg-white overflow-hidden">
       {/* Top bar */}
       <header className="h-11 flex items-center gap-3 px-5 border-b border-gray-200 shrink-0 bg-white">
         <Link
@@ -855,12 +958,26 @@ export default function WorkflowDetailPage({
           <TabsContent value="workflow" className="flex flex-col flex-1 overflow-hidden mt-0">
             <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 shrink-0">
               <h2 className="text-sm font-semibold text-gray-900">Workflow Structure</h2>
-              <Link href={`/workflow/${id}/canvas`}>
-                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-                  <Pencil size={12} />
-                  Edit Workflow
+              {workflow?.workflowType === "custom" && (
+                <Link href={`/workflow/${id}/canvas`}>
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                    <Pencil size={12} />
+                    Edit Workflow
+                  </Button>
+                </Link>
+              )}
+              {workflow?.workflowType === "default" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                  onClick={cloneWorkflow}
+                  disabled={cloning}
+                >
+                  {cloning ? <Loader2 size={12} className="animate-spin" /> : <Copy size={12} />}
+                  {cloning ? "Cloning..." : "Clone Workflow"}
                 </Button>
-              </Link>
+              )}
             </div>
             <div className="flex-1 relative overflow-hidden bg-[#f8fafc]">
               <ReactFlowProvider>

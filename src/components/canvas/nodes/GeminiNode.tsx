@@ -98,7 +98,7 @@ function InputRow({
   );
 }
 
-export const GeminiNode = memo(function GeminiNode({ id, data }: NodeProps) {
+export const GeminiNode = memo(function GeminiNode({ id, data, selected }: NodeProps) {
   const nodeData = data as GeminiData;
   const { updateNodeData, edges } = useFlowStore();
   const { nodeStates } = useRunStore();
@@ -140,7 +140,8 @@ export const GeminiNode = memo(function GeminiNode({ id, data }: NodeProps) {
       "bg-white border rounded-xl shadow-sm w-72 overflow-hidden transition-all select-none",
       isRunning ? "border-indigo-400 shadow-indigo-100 ring-2 ring-indigo-200" :
         isDone ? "border-emerald-300" :
-          isFailed ? "border-red-300" : "border-gray-200"
+          isFailed ? "border-red-300" : "border-gray-200",
+      selected && "ring-2 ring-indigo-500 border-indigo-500 animate-pulse-glow"
     )}>
 
       {/* Header */}

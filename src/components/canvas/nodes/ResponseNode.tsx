@@ -13,7 +13,7 @@ const PORT_COLORS: Record<string, string> = {
   any: "#94a3b8",
 };
 
-export const ResponseNode = memo(function ResponseNode({ id, data }: NodeProps) {
+export const ResponseNode = memo(function ResponseNode({ id, data, selected }: NodeProps) {
   const nodeData = data as ResponseData;
   const { nodeStates } = useRunStore();
   const nodeState = nodeStates[id];
@@ -27,7 +27,8 @@ export const ResponseNode = memo(function ResponseNode({ id, data }: NodeProps) 
     <div className={cn(
       "bg-white border rounded-xl shadow-sm w-56 overflow-hidden transition-all select-none",
       isRunning ? "border-emerald-400 shadow-emerald-100 ring-2 ring-emerald-100" :
-      isDone ? "border-emerald-300" : "border-gray-200"
+      isDone ? "border-emerald-300" : "border-gray-200",
+      selected && "ring-2 ring-indigo-500 border-indigo-500 animate-pulse-glow"
     )}>
       {/* Input handle */}
       <Handle

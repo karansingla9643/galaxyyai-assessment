@@ -21,8 +21,6 @@ import { ExtractAudioNode } from "./nodes/ExtractAudioNode";
 import { GeminiNode } from "./nodes/GeminiNode";
 import { DeletableEdge } from "./DeletableEdge";
 import CanvasToolbar from "./CanvasToolbar";
-import HistoryPanel from "./HistoryPanel";
-import { useRunStore } from "@/store/runStore";
 
 const nodeTypes: NodeTypes = {
   requestInputs: RequestInputsNode as any,
@@ -50,8 +48,6 @@ export default function FlowCanvas({ workflowId, onRun }: FlowCanvasProps) {
     onConnect,
     deleteNode,
   } = useFlowStore();
-
-  const { historyPanelOpen } = useRunStore();
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -126,9 +122,6 @@ export default function FlowCanvas({ workflowId, onRun }: FlowCanvasProps) {
 
         <CanvasToolbar workflowId={workflowId} onRun={onRun} />
       </ReactFlow>
-
-      {/* History panel */}
-      {historyPanelOpen && <HistoryPanel workflowId={workflowId} />}
     </div>
   );
 }

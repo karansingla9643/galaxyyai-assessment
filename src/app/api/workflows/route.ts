@@ -9,12 +9,13 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const workflows = await prisma.workflow.findMany({
-    where: { OR: [{ userId }, { isSystem: true }] },
+    where: { OR: [{ userId }, { isSystem: true }, { workflowType: "default" }] },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
       name: true,
       isSystem: true,
+      workflowType: true,
       createdAt: true,
       updatedAt: true,
       runs: {

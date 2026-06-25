@@ -6,6 +6,7 @@ export const WorkflowSchema = z.object({
   name: z.string(),
   flowJson: z.any(),
   isSystem: z.boolean(),
+  workflowType: z.string(),
   createdAt: z.string().or(z.date()),
   updatedAt: z.string().or(z.date()),
 });

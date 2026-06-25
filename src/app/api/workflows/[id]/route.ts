@@ -14,7 +14,7 @@ export async function GET(
   const { id } = await params;
 
   const workflow = await prisma.workflow.findFirst({
-    where: { id, OR: [{ userId }, { isSystem: true }] },
+    where: { id, OR: [{ userId }, { isSystem: true }, { workflowType: "default" }] },
     include: {
       runs: {
         orderBy: { startedAt: "desc" },
@@ -41,6 +41,7 @@ export async function PATCH(
 
   const workflow = await prisma.workflow.findFirst({ where: { id, userId } });
   if (!workflow) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (workflow.isSystem || workflow.workflowType === "default") return NextResponse.json({ error: "Cannot modify default workflows" }, { status: 403 });
 
   const body = await req.json();
 
@@ -74,6 +75,7 @@ export async function DELETE(
 
   const workflow = await prisma.workflow.findFirst({ where: { id, userId } });
   if (!workflow) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (workflow.isSystem || workflow.workflowType === "default") return NextResponse.json({ error: "Cannot delete default workflows" }, { status: 403 });
 
   await prisma.workflow.delete({ where: { id } });
   return NextResponse.json({ success: true });

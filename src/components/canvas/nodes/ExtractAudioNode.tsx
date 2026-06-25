@@ -6,7 +6,7 @@ import { Music, Loader2, CheckCircle } from "lucide-react";
 import { useRunStore } from "@/store/runStore";
 import { cn } from "@/lib/utils";
 
-export const ExtractAudioNode = memo(function ExtractAudioNode({ id, data }: NodeProps) {
+export const ExtractAudioNode = memo(function ExtractAudioNode({ id, data, selected }: NodeProps) {
   const { nodeStates } = useRunStore();
   const nodeState = nodeStates[id];
   const isRunning = nodeState?.status === "RUNNING";
@@ -20,7 +20,8 @@ export const ExtractAudioNode = memo(function ExtractAudioNode({ id, data }: Nod
           ? "border-blue-400 shadow-blue-100"
           : isDone
           ? "border-blue-300"
-          : "border-gray-200"
+          : "border-gray-200",
+        selected && "ring-2 ring-indigo-500 border-indigo-500 animate-pulse-glow"
       )}
     >
       {/* Input handle */}

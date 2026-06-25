@@ -68,7 +68,7 @@ function SliderRow({
   );
 }
 
-export const CropImageNode = memo(function CropImageNode({ id, data }: NodeProps) {
+export const CropImageNode = memo(function CropImageNode({ id, data, selected }: NodeProps) {
   const nodeData = data as CropImageData;
   const { updateNodeData, edges } = useFlowStore();
   const { nodeStates } = useRunStore();
@@ -92,7 +92,8 @@ export const CropImageNode = memo(function CropImageNode({ id, data }: NodeProps
       "bg-white border rounded-xl shadow-sm w-64 overflow-hidden transition-all select-none",
       isRunning ? "border-violet-400 shadow-violet-100 ring-2 ring-violet-200" : 
       isDone ? "border-emerald-300" :
-      isFailed ? "border-red-300" : "border-gray-200"
+      isFailed ? "border-red-300" : "border-gray-200",
+      selected && "ring-2 ring-indigo-500 border-indigo-500 animate-pulse-glow"
     )}>
       {/* Header */}
       <div className="px-3.5 py-2.5 bg-violet-50 border-b border-violet-100 flex items-center gap-2">

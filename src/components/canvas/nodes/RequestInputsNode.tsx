@@ -226,7 +226,7 @@ function FieldRow({
 }
 
 
-export const RequestInputsNode = memo(function RequestInputsNode({ id, data }: NodeProps) {
+export const RequestInputsNode = memo(function RequestInputsNode({ id, data, selected }: NodeProps) {
   const nodeData = data as RequestInputsData;
   const { updateNodeData } = useFlowStore();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -271,9 +271,12 @@ export const RequestInputsNode = memo(function RequestInputsNode({ id, data }: N
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm w-80">
+    <div className={cn(
+      "bg-white border rounded-2xl shadow-sm w-80 transition-all",
+      selected ? "ring-2 ring-indigo-500 border-indigo-500 animate-pulse-glow" : "border-gray-200"
+    )}>
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+      <div className="px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-indigo-100 flex items-center justify-center">
             <Type size={15} className="text-indigo-600" />

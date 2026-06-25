@@ -29,6 +29,7 @@ interface WorkflowItem {
   id: string;
   name: string;
   isSystem: boolean;
+  workflowType?: string;
   createdAt: string;
   updatedAt: string;
   runs: Array<{ status: string }>;
@@ -116,7 +117,7 @@ function WorkflowRow({
         >
           <ExternalLink size={13} />
         </button>
-        {!workflow.isSystem && (
+        {(!workflow.isSystem && workflow.workflowType !== "default") && (
           <>
             <button
               onClick={onRename}
@@ -239,8 +240,8 @@ export default function DashboardPage() {
   const filtered = workflows.filter((w) =>
     w.name.toLowerCase().includes(search.toLowerCase())
   );
-  const systemWorkflows = filtered.filter((w) => w.isSystem);
-  const userWorkflows = filtered.filter((w) => !w.isSystem);
+  const systemWorkflows = filtered.filter((w) => w.isSystem || w.workflowType === "default");
+  const userWorkflows = filtered.filter((w) => !w.isSystem && w.workflowType !== "default");
 
   return (
     <div className="w-full h-full p-8">
