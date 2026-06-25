@@ -3,29 +3,22 @@
 import { useEffect, use, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ReactFlowProvider } from "@xyflow/react";
-import { ArrowLeft, Loader2, Play, History, Pencil, Check, ChevronDown, ChevronRight, CheckCircle, AlertCircle, Clock, Timer, X } from "lucide-react";
+import { ArrowLeft, Loader2, Play, History, Pencil, Check, ChevronDown, ChevronRight, AlertCircle, Timer, X } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useFlowStore } from "@/store/flowStore";
 import { useRunStore } from "@/store/runStore";
 import { cn } from "@/lib/utils";
 import { formatTimestamp, formatDuration } from "@/lib/utils";
-import type { WorkflowRun, NodeRun } from "@/types/workflow";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import RunDetailDialog from "@/components/RunDetailDialog";
 
 const FlowCanvas = dynamic(
   () => import("@/components/canvas/FlowCanvas"),
   { ssr: false }
 );
 
-// ── Shared status helpers ─────────────────────────────────────────────────────
-
-function NodeStatusIcon({ status }: { status: string }) {
-  if (status === "SUCCESS") return <CheckCircle size={12} className="text-emerald-500 shrink-0" />;
-  if (status === "FAILED") return <AlertCircle size={12} className="text-red-500 shrink-0" />;
-  if (status === "RUNNING") return <Loader2 size={12} className="animate-spin text-blue-500 shrink-0" />;
-  return <Clock size={12} className="text-gray-300 shrink-0" />;
-}
+// ── Status badge for history dropdown ────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -49,115 +42,13 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function outputSnippet(output: unknown, maxLen = 60): string {
-  if (!output) return "";
-  if (typeof output === "string") return output.slice(0, maxLen);
-  const obj = output as Record<string, unknown>;
-  if (obj.value && typeof obj.value === "string") return (obj.value as string).slice(0, maxLen);
-  if (obj.response && typeof obj.response === "string") return (obj.response as string).slice(0, maxLen);
-  if (obj.outputUrl && typeof obj.outputUrl === "string") return "Image: " + (obj.outputUrl as string).slice(0, 32) + "…";
-  if (obj.imageUrl && typeof obj.imageUrl === "string") return "Image captured";
-  const keys = Object.keys(obj);
-  if (keys.length > 0) return keys.join(", ");
-  return JSON.stringify(output).slice(0, maxLen);
-}
-
-// ── Run Detail Dialog ─────────────────────────────────────────────────────────
-
-function RunDetailDialog({
-  run,
-  index,
-  onClose,
-}: {
-  run: WorkflowRun | null;
-  index: number;
-  onClose: () => void;
-}) {
-  if (!run) return null;
-
-  const nodeRuns = run.nodeRuns ?? [];
-  const duration = run.finishedAt
-    ? new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime()
-    : null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[80vh] overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className={cn(
-              "w-2.5 h-2.5 rounded-full shrink-0",
-              run.status === "SUCCESS" ? "bg-emerald-400" :
-              run.status === "FAILED" ? "bg-red-400" :
-              run.status === "PARTIAL" ? "bg-amber-400" : "bg-gray-300"
-            )} />
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">Run #{index}</h3>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[10px] text-gray-400">{formatTimestamp(run.startedAt)}</span>
-                {duration != null && (
-                  <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
-                    <Timer size={8} /> {formatDuration(duration)}
-                  </span>
-                )}
-              </div>
-            </div>
-            <StatusBadge status={run.status} />
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
-            <X size={14} />
-          </button>
-        </div>
-
-        {/* Node runs */}
-        <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
-          {nodeRuns.length === 0 ? (
-            <div className="py-12 text-center text-sm text-gray-400">No node details available</div>
-          ) : (
-            nodeRuns.map((nr, i) => {
-              const snippet = outputSnippet(nr.output);
-              const prefix = i === nodeRuns.length - 1 ? "└──" : "├──";
-              return (
-                <div key={nr.id} className="flex items-start gap-3 px-5 py-3.5">
-                  <span className="text-[10px] text-gray-300 font-mono mt-0.5 shrink-0 select-none">{prefix}</span>
-                  <NodeStatusIcon status={nr.status} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-gray-800">
-                        {nr.nodeLabel ?? nr.nodeType}
-                      </span>
-                      {nr.durationMs != null && (
-                        <span className="text-[10px] text-gray-400 font-mono">{formatDuration(nr.durationMs)}</span>
-                      )}
-                    </div>
-                    {snippet && (
-                      <p className="text-[11px] text-gray-500 truncate mt-0.5">→ {snippet}{snippet.length >= 60 ? "…" : ""}</p>
-                    )}
-                    {nr.error && (
-                      <p className="text-[11px] text-red-500 mt-0.5 truncate">✕ {nr.error}</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── History Dropdown ──────────────────────────────────────────────────────────
 
 function HistoryDropdown({ workflowId }: { workflowId: string }) {
   const { runs, setRuns } = useRunStore();
   const [open, setOpen] = useState(false);
   const [loadingRuns, setLoadingRuns] = useState(false);
-  const [selectedRun, setSelectedRun] = useState<{ run: WorkflowRun; index: number } | null>(null);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   // Close on outside click
@@ -226,15 +117,15 @@ function HistoryDropdown({ workflowId }: { workflowId: string }) {
                   return (
                     <button
                       key={run.id}
-                      onClick={() => { setSelectedRun({ run, index: idx }); setOpen(false); }}
+                      onClick={() => { setSelectedRunId(run.id); setOpen(false); }}
                       className="w-full flex items-center gap-2.5 px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0 text-left"
                     >
                       <div className={cn(
                         "w-2 h-2 rounded-full shrink-0",
                         run.status === "SUCCESS" ? "bg-emerald-400" :
-                        run.status === "FAILED" ? "bg-red-400" :
-                        run.status === "PARTIAL" ? "bg-amber-400" :
-                        run.status === "RUNNING" ? "bg-blue-400 animate-pulse" : "bg-gray-300"
+                          run.status === "FAILED" ? "bg-red-400" :
+                            run.status === "PARTIAL" ? "bg-amber-400" :
+                              run.status === "RUNNING" ? "bg-blue-400 animate-pulse" : "bg-gray-300"
                       )} />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -261,13 +152,10 @@ function HistoryDropdown({ workflowId }: { workflowId: string }) {
       </div>
 
       {/* Run detail dialog */}
-      {selectedRun && (
-        <RunDetailDialog
-          run={selectedRun.run}
-          index={selectedRun.index}
-          onClose={() => setSelectedRun(null)}
-        />
-      )}
+      <RunDetailDialog
+        runId={selectedRunId}
+        onClose={() => setSelectedRunId(null)}
+      />
     </>
   );
 }
@@ -290,7 +178,7 @@ export default function WorkflowCanvasPage({
   const [workflow, setWorkflow] = useState<any>(null);
   const [running, setRunning] = useState(false);
   const [runOverlay, setRunOverlay] = useState(false); // full-screen loading
-  const [completedRun, setCompletedRun] = useState<{ run: WorkflowRun; index: number } | null>(null);
+  const [completedRunId, setCompletedRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState("");
@@ -413,8 +301,7 @@ export default function WorkflowCanvasPage({
             addRun(runData);
             setRunning(false);
             setRunOverlay(false);
-            // Show the completed run dialog — it's the first run (index = total runs + 1 but we calc after addRun)
-            setCompletedRun({ run: runData, index: -1 }); // index will be resolved below
+            setCompletedRunId(runData.id);
           }
         } catch {
           clearInterval(pollInterval);
@@ -573,13 +460,10 @@ export default function WorkflowCanvasPage({
       </div>
 
       {/* Completed run dialog */}
-      {completedRun && (
-        <RunDetailDialog
-          run={completedRun.run}
-          index={runs.length}
-          onClose={() => setCompletedRun(null)}
-        />
-      )}
+      <RunDetailDialog
+        runId={completedRunId}
+        onClose={() => setCompletedRunId(null)}
+      />
     </div>
   );
 }
