@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { formatTimestamp, formatDuration } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import RunDetailDialog from "@/components/RunDetailDialog";
+import RunProgressDialog from "@/components/RunProgressDialog";
 
 const FlowCanvas = dynamic(
   () => import("@/components/canvas/FlowCanvas"),
@@ -177,8 +178,9 @@ export default function WorkflowCanvasPage({
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [workflow, setWorkflow] = useState<any>(null);
   const [running, setRunning] = useState(false);
-  const [runOverlay, setRunOverlay] = useState(false); // full-screen loading
+  const [runDialogOpen, setRunDialogOpen] = useState(false);
   const [completedRunId, setCompletedRunId] = useState<string | null>(null);
+  const [detailRunId, setDetailRunId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState("");
@@ -269,7 +271,7 @@ export default function WorkflowCanvasPage({
     }
     setValidationError(null);
     setRunning(true);
-    setRunOverlay(true);
+    setRunDialogOpen(true);
     try {
       const res = await fetch(`/api/workflows/${id}/run`, {
         method: "POST",
@@ -289,6 +291,8 @@ export default function WorkflowCanvasPage({
           for (const nodeRun of runData.nodeRuns ?? []) {
             setNodeStatus(nodeRun.nodeId, {
               status: nodeRun.status,
+              nodeType: nodeRun.nodeType,
+              nodeLabel: nodeRun.nodeLabel,
               output: nodeRun.output,
               error: nodeRun.error ?? undefined,
               durationMs: nodeRun.durationMs ?? undefined,
@@ -300,19 +304,18 @@ export default function WorkflowCanvasPage({
             finishRun(runData.status);
             addRun(runData);
             setRunning(false);
-            setRunOverlay(false);
+            // Keep dialog open so user can see final state; store runId for details
             setCompletedRunId(runData.id);
           }
         } catch {
           clearInterval(pollInterval);
           setRunning(false);
-          setRunOverlay(false);
         }
       }, 2000);
     } catch (err) {
       console.error("Run error:", err);
       setRunning(false);
-      setRunOverlay(false);
+      setRunDialogOpen(false);
     }
   };
 
@@ -335,18 +338,6 @@ export default function WorkflowCanvasPage({
 
   return (
     <div className="flex-1 flex flex-col bg-[#f8fafc] overflow-hidden">
-      {/* Full-screen run loading overlay */}
-      {runOverlay && (
-        <div className="fixed inset-0 z-50 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
-            <Loader2 size={28} className="animate-spin text-indigo-500" />
-          </div>
-          <div className="text-center">
-            <p className="text-sm font-semibold text-gray-800">Running workflow…</p>
-            <p className="text-xs text-gray-400 mt-0.5">This may take a few seconds</p>
-          </div>
-        </div>
-      )}
 
       {/* Top bar */}
       <header className="h-11 flex items-center gap-3 px-4 bg-white border-b border-gray-200 shrink-0 z-10">
@@ -459,10 +450,23 @@ export default function WorkflowCanvasPage({
         </ReactFlowProvider>
       </div>
 
-      {/* Completed run dialog */}
-      <RunDetailDialog
+      {/* Run Progress Dialog — live status while running */}
+      <RunProgressDialog
+        open={runDialogOpen}
         runId={completedRunId}
-        onClose={() => setCompletedRunId(null)}
+        onClose={() => {
+          setRunDialogOpen(false);
+        }}
+        onViewDetails={(runId) => {
+          setRunDialogOpen(false);
+          setDetailRunId(runId);
+        }}
+      />
+
+      {/* Completed run detail dialog */}
+      <RunDetailDialog
+        runId={detailRunId}
+        onClose={() => setDetailRunId(null)}
       />
     </div>
   );

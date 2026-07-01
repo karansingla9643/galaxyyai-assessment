@@ -6,6 +6,7 @@ import { UserButton } from "@clerk/nextjs";
 import { GitBranch, Cpu, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 
 const navItems = [
   { href: "/dashboard", label: "Flow", icon: GitBranch },
@@ -129,13 +130,13 @@ export default function DashboardSidebar() {
       </div>
 
       {/* Collapse toggle button */}
-      <button
+      <Button
         onClick={toggle}
-        className="absolute -right-3 top-[50%] -translate-y-1/2 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:shadow-md hover:border-gray-300 transition-all z-20 text-gray-400 hover:text-gray-700"
+        className="absolute -right-3 top-[50%] -translate-y-1/2 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:shadow-md hover:border-gray-300 transition-all z-20 text-gray-400 hover:text-gray-700 cursor-pointer"
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-      </button>
+      </Button>
     </aside>
   );
 }

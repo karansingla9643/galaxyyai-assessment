@@ -6,6 +6,7 @@ import type { Node, Edge } from "@xyflow/react";
 import type { NodeData } from "@/types/nodes";
 import { GoogleGenerativeAI, type Part } from "@google/generative-ai";
 import sharp from "sharp";
+import { uploadBufferToSupabase } from "@/lib/transloadit";
 
 export const maxDuration = 300; // 5 min timeout
 
@@ -36,8 +37,9 @@ async function executeCropImage(params: {
   yPosition: number;
   width: number;
   height: number;
+  nodeRunId?: string;
 }): Promise<{ outputUrl: string }> {
-  const { imageUrl, xPosition, yPosition, width, height } = params;
+  const { imageUrl, xPosition, yPosition, width, height, nodeRunId } = params;
   const buf = await fetchBuffer(imageUrl);
   const img = sharp(buf);
   const meta = await img.metadata();
@@ -58,7 +60,11 @@ async function executeCropImage(params: {
     .jpeg({ quality: 90 })
     .toBuffer();
 
-  const outputUrl = `data:image/jpeg;base64,${cropped.toString("base64")}`;
+  // Upload to Supabase via Transloadit Template for a permanent URL
+  const filename = nodeRunId ? `cropped-${nodeRunId}.jpg` : `cropped-${Date.now()}.jpg`;
+  const supabaseUrl = await uploadBufferToSupabase(cropped, filename, "image/jpeg");
+
+  const outputUrl = supabaseUrl ?? `data:image/jpeg;base64,${cropped.toString("base64")}`;
   return { outputUrl };
 }
 
@@ -271,6 +277,7 @@ async function executeWorkflow(
               yPosition: (getConnectedValue(node.id, "yPosition") as number) ?? (nodeData as any).yPosition ?? 0,
               width: (getConnectedValue(node.id, "width") as number) ?? (nodeData as any).width ?? 100,
               height: (getConnectedValue(node.id, "height") as number) ?? (nodeData as any).height ?? 100,
+              nodeRunId,
             });
             output = result;
             resolvedOutputs[node.id] = { outputImage: result.outputUrl };
@@ -336,7 +343,9 @@ async function executeWorkflow(
         srcOutputs;
     }
     const isImage =
-      typeof finalOutput === "string" && (finalOutput as string).startsWith("data:image");
+      typeof finalOutput === "string" &&
+      ((finalOutput as string).startsWith("data:image") ||
+        (finalOutput as string).startsWith("https://"));
 
     await prisma.nodeRun.update({
       where: { id: nodeRunMap[responseNode.id] },

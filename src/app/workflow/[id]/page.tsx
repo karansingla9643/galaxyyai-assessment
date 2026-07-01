@@ -14,6 +14,8 @@ import dynamic from "next/dynamic";
 import { formatLabel } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import RunDetailDialog from "@/components/RunDetailDialog";
+import RunProgressDialog from "@/components/RunProgressDialog";
+import { useRunStore } from "@/store/runStore";
 
 // Lazy-load the read-only canvas (no SSR)
 const ReadOnlyCanvas = dynamic(
@@ -94,10 +96,12 @@ function ImageUploadField({
   value,
   onChange,
   label,
+  workflow,
 }: {
   value: string;
   onChange: (url: string) => void;
   label: string;
+  workflow: WorkflowData;
 }) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -125,18 +129,24 @@ function ImageUploadField({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={value} alt={label} className="w-full max-h-48 object-cover" />
         <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors" />
-        <button
-          onClick={() => onChange("")}
-          className="absolute top-2 right-2 w-7 h-7 bg-white hover:bg-red-50 border border-gray-200 hover:border-red-300 rounded-full flex items-center justify-center shadow-sm transition-all group"
-        >
-          <X size={13} className="text-gray-400 group-hover:text-red-500" />
-        </button>
-        <button
-          onClick={() => fileRef.current?.click()}
-          className="absolute bottom-2 right-2 text-[10px] bg-white/90 backdrop-blur-sm border border-gray-200 px-2 py-1 rounded-lg text-gray-600 hover:text-gray-900 shadow-sm"
-        >
-          Replace
-        </button>
+        {workflow.workflowType !== "default" && (
+          <>
+
+            <button
+              onClick={() => onChange("")}
+              className="absolute top-2 right-2 w-7 h-7 bg-white hover:bg-red-50 border border-gray-200 hover:border-red-300 rounded-full flex items-center justify-center shadow-sm transition-all group"
+            >
+              <X size={13} className="text-gray-400 group-hover:text-red-500" />
+            </button>
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="absolute bottom-2 right-2 text-[10px] bg-white/90 backdrop-blur-sm border border-gray-200 px-2 py-1 rounded-lg text-gray-600 hover:text-gray-900 shadow-sm"
+            >
+              Replace
+            </button>
+          </>
+        )
+        }
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); }} />
       </div>
     );
@@ -181,6 +191,11 @@ function PlaygroundTab({ workflow }: { workflow: WorkflowData }) {
   const [runFilter, setRunFilter] = useState<"UI" | "API">("UI");
   const [runSearch, setRunSearch] = useState("");
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [runDialogOpen, setRunDialogOpen] = useState(false);
+  const [activeProgressRunId, setActiveProgressRunId] = useState<string | null>(null);
+  const [detailRunId, setDetailRunId] = useState<string | null>(null);
+
+  const { startRun, setNodeStatus, finishRun, addRun } = useRunStore();
 
   // ── Resize state ──────────────────────────────────────────────────
   const [historyHeight, setHistoryHeight] = useState(35); // percentage
@@ -197,6 +212,8 @@ function PlaygroundTab({ workflow }: { workflow: WorkflowData }) {
 
   const handleRun = async () => {
     setRunning(true);
+    setRunDialogOpen(true);
+    setActiveProgressRunId(null);
     setOutput(null);
     setOutputImage(null);
     setError(null);
@@ -213,28 +230,53 @@ function PlaygroundTab({ workflow }: { workflow: WorkflowData }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Run failed");
 
-      const poll = async (): Promise<void> => {
-        const pollRes = await fetch(`/api/runs/${data.runId}`);
-        const runData = await pollRes.json();
-        if (["PENDING", "RUNNING"].includes(runData.status)) {
-          await new Promise((r) => setTimeout(r, 2000));
-          return poll();
+      startRun(data.runId);
+      setActiveProgressRunId(data.runId);
+
+      const pollInterval = setInterval(async () => {
+        try {
+          const pollRes = await fetch(`/api/runs/${data.runId}`);
+          const runData = await pollRes.json();
+
+          // Feed per-node updates into the store so RunProgressDialog sees them
+          for (const nodeRun of runData.nodeRuns ?? []) {
+            setNodeStatus(nodeRun.nodeId, {
+              status: nodeRun.status,
+              nodeType: nodeRun.nodeType,
+              nodeLabel: nodeRun.nodeLabel,
+              output: nodeRun.output,
+              error: nodeRun.error ?? undefined,
+              durationMs: nodeRun.durationMs ?? undefined,
+            });
+          }
+
+          if (!["PENDING", "RUNNING"].includes(runData.status)) {
+            clearInterval(pollInterval);
+            finishRun(runData.status);
+            addRun(runData);
+            setRunning(false);
+
+            // Extract output for the panel
+            if (runData.status === "SUCCESS" || runData.status === "COMPLETED") {
+              const responseNodeRun = runData.nodeRuns?.find((nr: any) => nr.nodeType === "response");
+              if (responseNodeRun?.output?.imageUrl) setOutputImage(responseNodeRun.output.imageUrl);
+              else if (responseNodeRun?.output?.value) setOutput(responseNodeRun.output.value);
+              else setOutput(JSON.stringify(runData.output ?? runData.nodeRuns?.map((r: any) => r.output), null, 2));
+            } else {
+              setError(runData.error ?? "Workflow run failed");
+            }
+
+            await refreshRuns();
+          }
+        } catch {
+          clearInterval(pollInterval);
+          setRunning(false);
         }
-        if (runData.status === "SUCCESS" || runData.status === "COMPLETED") {
-          const responseNodeRun = runData.nodeRuns?.find((nr: any) => nr.nodeType === "response");
-          if (responseNodeRun?.output?.imageUrl) setOutputImage(responseNodeRun.output.imageUrl);
-          else if (responseNodeRun?.output?.value) setOutput(responseNodeRun.output.value);
-          else setOutput(JSON.stringify(runData.output ?? runData.nodeRuns?.map((r: any) => r.output), null, 2));
-        } else {
-          setError(runData.error ?? "Workflow run failed");
-        }
-        await refreshRuns();
-      };
-      await poll();
+      }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
       setRunning(false);
+      setRunDialogOpen(false);
     }
   };
 
@@ -370,6 +412,7 @@ function PlaygroundTab({ workflow }: { workflow: WorkflowData }) {
                       value={field.value}
                       onChange={(url) => updateField(field.id, url)}
                       label={field.label}
+                      workflow={workflow}
                     />
                   ) : (
                     <div className="border border-dashed border-gray-200 rounded-lg p-3 text-center text-xs text-gray-400">
@@ -450,16 +493,16 @@ function PlaygroundTab({ workflow }: { workflow: WorkflowData }) {
           >
             <div
               className={`w-12 h-1 rounded-full transition-all ${isDragging
-                  ? "bg-indigo-500 w-16"
-                  : "bg-gray-300 group-hover:bg-indigo-400"
+                ? "bg-indigo-500 w-16"
+                : "bg-gray-300 group-hover:bg-indigo-400"
                 }`}
             />
             <div className="absolute inset-0 flex items-center justify-center">
               <GripHorizontal
                 size={14}
                 className={`text-gray-400 transition-opacity ${isDragging
-                    ? "text-indigo-500"
-                    : "opacity-0 group-hover:opacity-100"
+                  ? "text-indigo-500"
+                  : "opacity-0 group-hover:opacity-100"
                   }`}
               />
             </div>
@@ -510,8 +553,8 @@ function PlaygroundTab({ workflow }: { workflow: WorkflowData }) {
                   <button
                     onClick={() => setRunFilter("UI")}
                     className={`px-3 py-1 rounded-md font-medium transition-all ${runFilter === "UI"
-                        ? "bg-white text-gray-900 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
                       }`}
                   >
                     UI Runs
@@ -520,8 +563,8 @@ function PlaygroundTab({ workflow }: { workflow: WorkflowData }) {
                   <button
                     onClick={() => setRunFilter("API")}
                     className={`px-3 py-1 rounded-md font-medium transition-all ${runFilter === "API"
-                        ? "bg-white text-gray-900 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
                       }`}
                   >
                     API Runs
@@ -625,8 +668,22 @@ function PlaygroundTab({ workflow }: { workflow: WorkflowData }) {
         </>
       )}
 
-      {/* Run Detail Dialog */}
-      <RunDetailDialog runId={selectedRunId} onClose={() => setSelectedRunId(null)} />
+      {/* Run Progress Dialog — live status while running */}
+      <RunProgressDialog
+        open={runDialogOpen}
+        runId={activeProgressRunId}
+        onClose={() => setRunDialogOpen(false)}
+        onViewDetails={(runId) => {
+          setRunDialogOpen(false);
+          setDetailRunId(runId);
+        }}
+      />
+
+      {/* Run Detail Dialog — history rows + view details from progress dialog */}
+      <RunDetailDialog
+        runId={selectedRunId ?? detailRunId}
+        onClose={() => { setSelectedRunId(null); setDetailRunId(null); }}
+      />
     </div>
   );
 }

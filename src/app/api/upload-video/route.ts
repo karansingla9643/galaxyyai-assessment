@@ -25,8 +25,9 @@ export async function POST(req: NextRequest) {
 
     const authKey = process.env.NEXT_PUBLIC_TRANSLOADIT_KEY ?? "";
     const authSecret = process.env.TRANSLOADIT_SECRET ?? "";
+    const templateId = process.env.TRANSLOADIT_TEMPLATE_ID ?? "";
 
-    if (!authKey || !authSecret || authKey === "REPLACE_ME") {
+    if (!authKey || !authSecret || !templateId || authKey === "REPLACE_ME") {
       // Dev fallback — return a blob URL placeholder
       return NextResponse.json({
         url: `data:${file.type};placeholder,${file.name}`,
@@ -41,9 +42,7 @@ export async function POST(req: NextRequest) {
         key: authKey,
         expires: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       },
-      steps: {
-        ":original": { robot: "/upload/handle", result: true },
-      },
+      template_id: templateId,
     });
 
     const signature = `sha384:${crypto
@@ -56,7 +55,8 @@ export async function POST(req: NextRequest) {
     uploadForm.append("signature", signature);
     uploadForm.append("file", file);
 
-    const res = await fetch("https://api2.transloadit.com/assemblies", {
+    // ?wait=true — block until assembly (including Supabase store) is done
+    const res = await fetch("https://api2.transloadit.com/assemblies?wait=true", {
       method: "POST",
       body: uploadForm,
     });
@@ -68,9 +68,12 @@ export async function POST(req: NextRequest) {
 
     if (result.error) throw new Error(result.error);
 
-    const files = Object.values(result.results ?? {}).flat();
-    const url = files[0]?.ssl_url;
-    if (!url) throw new Error("No upload URL returned");
+    // Scan all step results — prefer any Supabase URL, fall back to any ssl_url
+    const allFiles = Object.values(result.results ?? {}).flat();
+    const url =
+      allFiles.find((f) => f.ssl_url?.includes("supabase.co"))?.ssl_url ??
+      allFiles.find((f) => f.ssl_url)?.ssl_url;
+    if (!url) throw new Error("No permanent URL returned from Transloadit");
 
     return NextResponse.json({ url, name: file.name });
   } catch (err) {

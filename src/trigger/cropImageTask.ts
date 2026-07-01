@@ -1,7 +1,7 @@
 import { task, logger } from "@trigger.dev/sdk/v3";
 import { z } from "zod";
 import sharp from "sharp";
-import crypto from "crypto";
+import { uploadBufferToSupabase } from "@/lib/transloadit";
 
 const CropImagePayload = z.object({
   nodeRunId: z.string(),
@@ -23,59 +23,6 @@ async function fetchBuffer(url: string): Promise<Buffer> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch image: ${res.statusText}`);
   return Buffer.from(await res.arrayBuffer());
-}
-
-async function uploadToTransloadit(buffer: Buffer, filename: string): Promise<string | null> {
-  const authKey = process.env.NEXT_PUBLIC_TRANSLOADIT_KEY ?? "";
-  const authSecret = process.env.TRANSLOADIT_SECRET ?? "";
-
-  if (!authKey || !authSecret || authKey === "galaxyaitest") {
-    logger.warn("Transloadit not configured — using base64 fallback");
-    return null;
-  }
-
-  try {
-    const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-    const params = JSON.stringify({
-      auth: { key: authKey, expires },
-      steps: {
-        ":original": { robot: "/upload/handle", result: true },
-      },
-    });
-
-    const signature = `sha384:${crypto
-      .createHmac("sha384", authSecret)
-      .update(params)
-      .digest("hex")}`;
-
-    // Use FormData via Blob (Trigger.dev runs Node 18+)
-    const fd = new FormData();
-    fd.append("params", params);
-    fd.append("signature", signature);
-    fd.append("file", new Blob([new Uint8Array(buffer)], { type: "image/jpeg" }), filename);
-
-    const res = await fetch("https://api2.transloadit.com/assemblies", {
-      method: "POST",
-      body: fd,
-    });
-    const result = await res.json() as {
-      ok?: string;
-      results?: Record<string, Array<{ ssl_url?: string; url?: string }>>;
-      error?: string;
-    };
-
-    if (result.error) {
-      logger.warn("Transloadit upload failed", { error: result.error });
-      return null;
-    }
-
-    const files = Object.values(result.results ?? {}).flat();
-    const url = files[0]?.ssl_url ?? files[0]?.url;
-    return url ?? null;
-  } catch (e) {
-    logger.warn("Transloadit upload error", { error: e });
-    return null;
-  }
 }
 
 export const cropImageTask = task({
@@ -111,24 +58,30 @@ export const cropImageTask = task({
 
     logger.info("Crop complete", { outputSize: cropped.length });
 
-    // Try Transloadit upload first
-    const transloaditUrl = await uploadToTransloadit(cropped, `cropped-${nodeRunId}.jpg`);
+    // Upload to Supabase via Transloadit Template — get permanent URL
+    const supabaseUrl = await uploadBufferToSupabase(
+      cropped,
+      `cropped-${nodeRunId}.jpg`,
+      "image/jpeg"
+    );
 
     let outputUrl: string;
-    if (transloaditUrl) {
-      logger.info("Uploaded to Transloadit", { url: transloaditUrl });
-      outputUrl = transloaditUrl;
+    if (supabaseUrl) {
+      logger.info("Uploaded to Supabase via Transloadit", { url: supabaseUrl });
+      outputUrl = supabaseUrl;
     } else {
-      // Fallback to base64 data URL
+      // Fallback to base64 data URL if Transloadit/Supabase not configured
       outputUrl = `data:image/jpeg;base64,${cropped.toString("base64")}`;
-      logger.info("Using base64 fallback", { length: outputUrl.length });
+      logger.warn("Transloadit/Supabase not configured — using base64 fallback", {
+        length: outputUrl.length,
+      });
     }
 
     return {
       outputUrl,
       nodeRunId,
       workflowRunId,
-      provider: transloaditUrl ? "transloadit" : "base64",
+      provider: supabaseUrl ? "supabase" : "base64",
       cropParams: { xPosition, yPosition, width, height, cropX, cropY, cropW, cropH },
     };
   },

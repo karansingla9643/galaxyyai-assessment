@@ -5,6 +5,8 @@ import type { NodeStatusType, RunStatusType, WorkflowRun } from "@/types/workflo
 
 export interface NodeExecutionState {
   status: NodeStatusType;
+  nodeType?: string;
+  nodeLabel?: string | null;
   startedAt?: Date;
   finishedAt?: Date;
   durationMs?: number;
