@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { topologicalSort, getParallelGroups } from "@/lib/dag";
 import type { Node, Edge } from "@xyflow/react";
@@ -187,8 +187,9 @@ export async function POST(
     nodeRunMap[node.id] = nr.id;
   }
 
-  // Fire-and-forget
-  void executeWorkflow(run.id, nodesToRun, edges, nodeRunMap, bodyInputs);
+  // Use after() so Vercel keeps the Lambda alive after the 202 response is
+  // sent — without this, fire-and-forget is killed immediately on Vercel.
+  after(executeWorkflow(run.id, nodesToRun, edges, nodeRunMap, bodyInputs));
 
   return NextResponse.json({ runId: run.id, status: "RUNNING" }, { status: 202 });
 }
