@@ -62,7 +62,17 @@ async function executeCropImage(params: {
 
   // Upload to Supabase via Transloadit Template for a permanent URL
   const filename = nodeRunId ? `cropped-${nodeRunId}.jpg` : `cropped-${Date.now()}.jpg`;
-  const supabaseUrl = await uploadBufferToSupabase(cropped, filename, "image/jpeg");
+  let supabaseUrl: string | null = null;
+  try {
+    supabaseUrl = await uploadBufferToSupabase(cropped, filename, "image/jpeg");
+    if (supabaseUrl) {
+      console.log(`[crop] Uploaded to Supabase: ${supabaseUrl}`);
+    } else {
+      console.warn(`[crop] Supabase upload returned null — using base64 fallback`);
+    }
+  } catch (uploadErr) {
+    console.warn(`[crop] Supabase upload threw — using base64 fallback:`, uploadErr);
+  }
 
   const outputUrl = supabaseUrl ?? `data:image/jpeg;base64,${cropped.toString("base64")}`;
   return { outputUrl };

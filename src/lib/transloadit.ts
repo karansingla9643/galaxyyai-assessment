@@ -61,11 +61,21 @@ export async function uploadBufferToSupabase(
     fd.append("signature", signature);
     fd.append("file", new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
 
-    // ?wait=true blocks until the assembly (including Supabase store) is done
-    const res = await fetch("https://api2.transloadit.com/assemblies?wait=true", {
-      method: "POST",
-      body: fd,
-    });
+    // ?wait=true blocks until the assembly (including Supabase store) is done.
+    // AbortController gives up after 25s so we never hang a serverless function.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25_000);
+
+    let res: Response;
+    try {
+      res = await fetch("https://api2.transloadit.com/assemblies?wait=true", {
+        method: "POST",
+        body: fd,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const result = await res.json() as {
       ok?: string;
